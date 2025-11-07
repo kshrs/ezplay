@@ -5,6 +5,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"fyne.io/fyne/v2/layout"
 
 	"log"
 	"os"
@@ -30,7 +31,7 @@ func returnFileList(searchString string) ([]string, error) {
 }
 
 func errorWindow(app fyne.App, msg string) {
-	w := app.NewWindow("Error Window")
+	w := app.NewWindow("EzPlay")
 	errorLabel := widget.NewLabel("Error: " + msg)
 	closeButton := widget.NewButton("Close", func() {
 		w.Close()
@@ -52,7 +53,7 @@ func returnPlayCombo(fileList []string, searchString string, videoFileType strin
 		}
 	}
 	if (videoFileName == "" && subFileName == "") {
-		return "", "", errors.New("No Video and Subtrack Found")
+		return "", "", errors.New("No Video and Subtrack Found or Selected")
 	}
 	if (subFileName == "") {
 		return videoFileName, "", nil
@@ -65,7 +66,7 @@ func returnPlayCombo(fileList []string, searchString string, videoFileType strin
 
 func main() {
 	a := app.New()
-	w := a.NewWindow("Main Window")
+	w := a.NewWindow("EzPlay")
 
 
 	fileList, err := returnFileList("")
@@ -74,8 +75,16 @@ func main() {
 		return
 	}
 	fileListLabel := widget.NewLabel(strings.Join(fileList, "\n"))
+	scrollFileList := container.NewVScroll(fileListLabel)
+	// scrollFileList.Resize(fyne.NewSize(500, 150))
+	fixedScrollFileList := container.New(
+		layout.NewGridWrapLayout(fyne.NewSize(500, 150)),
+		scrollFileList,
+	)
 
-	searchEntry := widget.NewMultiLineEntry()
+
+	// searchEntry := widget.NewMultiLineEntry()
+	searchEntry := widget.NewEntry()
 	searchEntry.PlaceHolder = "Type to search files"
 	searchButton := widget.NewButton("Search", func() {
 		fileList, err := returnFileList(searchEntry.Text)
@@ -86,25 +95,67 @@ func main() {
 		fileListLabel.SetText(strings.Join(fileList, "\n"))
 	})
 
+	searchEntry.OnSubmitted = func(_ string) {
+		searchButton.Tapped(nil)
+	}
+
+
+	
+	videoType := ".mp4"
+	videoTypes := []string{".mp4", ".mp3", ".mkv"}
+	comboVideoType := widget.NewSelect(videoTypes, func(value string) {videoType = value})
+	comboVideoType.PlaceHolder = ".mp4"
+
+	subType := ".srt"
+	subTypes := []string{"None", ".srt"}
+	comboSubType := widget.NewSelect(subTypes, func(value string) {
+		if (value == "None") {
+			subType = ""
+		} else {
+			subType = value
+		}
+	})
+	comboSubType.PlaceHolder = ".srt"
+
 	playButton := widget.NewButton("Play", func() {
-		videoFileName, subFileName, err := returnPlayCombo(fileList, searchEntry.Text, ".mp4", ".srt")
+		videoFileName, subFileName, err := returnPlayCombo(fileList, searchEntry.Text, videoType, subType)
 		if err != nil {
 			errorWindow(a, err.Error())
 			return
 		}
 
-		playCmd := exec.Command("mpv", videoFileName, strings.Join([]string{"--sub-file", subFileName}, "="))
+		var playCmd *exec.Cmd
+		if (subType == "None") {
+			playCmd = exec.Command("mpv", videoFileName)
+		} else {
+			playCmd = exec.Command("mpv", videoFileName, strings.Join([]string{"--sub-file", subFileName}, "="))
+		}
 		log.Println(playCmd)
 		err = playCmd.Run()
 		if err != nil {
 			errorWindow(a, "MPV Error")
 			return
 		}
-
-
 	})
+
 	
 
-	w.SetContent(container.NewVBox(searchEntry, searchButton, fileListLabel, playButton))
-	w.ShowAndRun()
+	w.SetContent(
+		container.NewVBox(
+			searchEntry, 
+			searchButton,
+			// scrollFileList,
+			fixedScrollFileList,
+			layout.NewSpacer(),
+			container.NewHBox(comboVideoType, comboSubType),
+			playButton,
+	))
+	w.Resize(fyne.NewSize(500, 300))
+	w.Show()
+	
+	fyne.Do(func() {
+		w.Canvas().Focus(searchEntry)
+	})
+
+	a.Run()
 }
