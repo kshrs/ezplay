@@ -43,6 +43,13 @@ func errorWindow(app fyne.App, msg string) {
 		w.Close()
 	})
 	w.SetContent(container.NewVBox(errorLabel,closeButton))
+
+	w.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
+		if (ev.Name == fyne.KeyReturn || ev.Name == fyne.KeyEnter) {
+			closeButton.Tapped(nil)
+		}
+
+	})
 	w.Show()
 }
 
@@ -93,18 +100,27 @@ func main() {
 	// searchEntry := widget.NewMultiLineEntry()
 	searchEntry := widget.NewEntry()
 	searchEntry.PlaceHolder = "Type to search files"
-	searchButtonFunction := func() {
+	// searchButtonFunction := func() {
+	// 	fileList, err := returnFileList(searchEntry.Text, folderPath)
+	// 	if err != nil {
+	// 		errorWindow(a, err.Error())
+	// 		return
+	// 	}
+	// 	fileListLabel.SetText(strings.Join(fileList, "\n"))
+	// }
+	// searchButton := widget.NewButton("Search", searchButtonFunction)
+	//
+	// searchEntry.OnSubmitted = func(_ string) {
+	// 	searchButton.Tapped(nil)
+	// }
+	searchEntry.OnChanged = func(_ string) {
 		fileList, err := returnFileList(searchEntry.Text, folderPath)
 		if err != nil {
 			errorWindow(a, err.Error())
 			return
 		}
 		fileListLabel.SetText(strings.Join(fileList, "\n"))
-	}
-	searchButton := widget.NewButton("Search", searchButtonFunction)
 
-	searchEntry.OnSubmitted = func(_ string) {
-		searchButton.Tapped(nil)
 	}
 
 
@@ -181,6 +197,13 @@ func main() {
 			return
 		}
 	})
+	searchEntry.OnSubmitted = func(_ string) {
+		if folderPath == "" {
+			chooseFolderButton.Tapped(nil)
+		} else {
+			playButton.Tapped(nil)
+		}
+	}
 
 	
 
@@ -190,7 +213,7 @@ func main() {
 			// container.NewBorder Doesn't require layout.NewSpacer() and works well with fyne.TextWrapWord -> label.Wrapping
 			container.NewBorder(nil, nil, nil, chooseFolderButton, folderLabel),
 			searchEntry, 
-			searchButton,
+			// searchButton,
 			// scrollFileList,
 			fixedScrollFileList,
 			layout.NewSpacer(),
