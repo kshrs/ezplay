@@ -20,6 +20,7 @@ cd ezplay
 
 2. Build the executable:
 ```bash
+go mod tidy
 mkdir build
 go build -o build/ezplay
 ```
