@@ -12,83 +12,129 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"errors"
+	// "errors"
 	// "fmt"
 	"path/filepath"
 )
 
-func returnFileList(searchString string, folderPath string) ([]string, error) {
-	if folderPath == "" {
-		fileList := []string{"Select a Folder to Search"}
-		return fileList, nil
+// Function: searchFiles returns a slice of string which containes the search results 
+// for a specific search string and an error message.
+func searchFiles(searchString string, dirToSearch string) ([]string, error) {
+	if dirToSearch == "" {
+		return []string{"Select a Folder to Search"}, nil
 	}
-	entries, err := os.ReadDir(folderPath)
+	var files []string
+
+	entries, err := os.ReadDir(dirToSearch)
 	if err != nil {
 		return nil, err
 	}
-
-	var files []string
 	for _, entry := range entries {
-		if (!entry.IsDir() && strings.Contains(entry.Name(), searchString)) {
-			files = append(files, entry.Name())
+		if !entry.IsDir() {
+			if strings.Contains(entry.Name(), searchString) {
+				files = append(files, entry.Name())
+			}
 		}
 	}
 	return files, nil
 }
 
+// Function: errorWindow creates a new popup window to display the error message.
 func errorWindow(app fyne.App, msg string) {
-	w := app.NewWindow("EzPlay")
-	errorLabel := widget.NewLabel("Error: " + msg)
+	errWindow := app.NewWindow("EzPlay")
+	errLabel := widget.NewLabel("Error: " + msg)
 	closeButton := widget.NewButton("Close", func() {
-		w.Close()
+		errWindow.Close()
 	})
-	w.SetContent(container.NewVBox(errorLabel,closeButton))
 
-	w.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
-		if (ev.Name == fyne.KeyReturn || ev.Name == fyne.KeyEnter) {
+	errWindow.SetContent(container.NewVBox(errLabel, closeButton))
+	errWindow.Show()
+
+	errWindow.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
+		if(ev.Name == fyne.KeyReturn || ev.Name == fyne.KeyEnter) {
 			closeButton.Tapped(nil)
 		}
-
 	})
-	w.Show()
 }
 
-func returnPlayCombo(fileList []string, searchString string, videoFileType string, subFileType string, folderPath string) (string, string, error) {
-	var videoFileName string = ""
-	var subFileName string = ""
-
-	for _, file := range fileList {
-		if (strings.Contains(file, searchString) && strings.Contains(file, videoFileType)) {
-			videoFileName = file
-		}
-		if (strings.Contains(file, searchString) && strings.Contains(file, subFileType)) {
-			subFileName = file
-		}
-	}
-	if (videoFileName == "" && subFileName == "") {
-		return "", "", errors.New("No Video and Subtrack Found or Selected")
-	}
-	if (subFileName == "") {
-		return videoFileName, "", nil
-	}
-
-	return filepath.Join(folderPath, videoFileName),
-			filepath.Join(folderPath, subFileName),
-			nil
+// PlayFile struct is a Result struct which holds the absolute location of the video and sub file as string
+type PlayFile struct {
+	VideoFileLocation string
+	SubFileLocation string
 }
+
+// Function: locatePlayFiles return a *PlayFile struct which contains the locations of the video,sub file and an error message
+func locatePlayFiles(files []string, searchString string, videoFileType string, subFileType string, fileDir string) (*PlayFile, error) {
+	var (
+		videoFile string
+		subFile string
+	)
+
+	for _, file := range files {
+		if !strings.Contains(file, searchString) {
+			continue
+		}
+
+		if videoFile == "" && strings.Contains(file, videoFileType) {
+			videoFile = file
+		} else if subFile == "" && strings.Contains(file, subFileType) {
+			subFile = file
+		}
+		
+		if videoFile != "" && subFile != "" {
+			break
+		}
+	}
+
+	return &PlayFile{
+		VideoFileLocation: filepath.Join(fileDir, videoFile),
+		SubFileLocation: filepath.Join(fileDir, subFile),
+	}, nil
+}
+
+// func searchFileWidget(app fyne.App, dirOfFiles string) *fyne.Container {
+//
+// 	searchEntry := widget.NewEntry()
+// 	searchEntry.PlaceHolder = "Type to search files"
+//
+// 	searchEntry.OnChanged = func(_ string) {
+// 		fileList, err := searchFiles(searchEntry.Text, dirOfFiles)
+// 		if err != nil {
+// 			errorWindow(app, err.Error())
+// 			return
+// 		}
+// 		fileListLabel.SetText(strings.Join(fileList, "\n"))
+//
+// 	}
+//
+// 	files, err := searchFiles("", dirOfFiles)
+// 	if err != nil {
+// 		errorWindow(app, err.Error())
+// 	}
+// 	filesDisplayLabel := widget.NewLabel(strings.Join(files, "\n"))
+// 	fileDisplayScrollContainer := container.NewVScroll(filesDisplayLabel)
+//
+// 	return container.NewVBox(
+// 		container.New(
+// 			layout.NewGridWrapLayout(fyne.NewSize(500, 150)),
+// 			fileDisplayScrollContainer,
+// 		),
+// 	)
+// }
+//
+
 
 func main() {
-	a := app.NewWithID("github.com/kshrs/ezplay")
-	w := a.NewWindow("EzPlay")
+	app := app.NewWithID("github.com/kshrs/ezplay")
+	mainWindow := app.NewWindow("EzPlay")
 
-	folderPath := ""
+	var dirOfFiles string
 
-
-	fileList, err := returnFileList("", folderPath)
+	files, err := searchFiles("", dirOfFiles)
 	if err != nil {
-		errorWindow(a, err.Error())
+		errorWindow(app, err.Error())
 	}
-	fileListLabel := widget.NewLabel(strings.Join(fileList, "\n"))
+	fileListLabel := widget.NewLabel(strings.Join(files, "\n"))
 	scrollFileList := container.NewVScroll(fileListLabel)
 	// scrollFileList.Resize(fyne.NewSize(500, 150))
 	fixedScrollFileList := container.New(
@@ -114,9 +160,9 @@ func main() {
 	// 	searchButton.Tapped(nil)
 	// }
 	searchEntry.OnChanged = func(_ string) {
-		fileList, err := returnFileList(searchEntry.Text, folderPath)
+		fileList, err := searchFiles(searchEntry.Text, dirOfFiles)
 		if err != nil {
-			errorWindow(a, err.Error())
+			errorWindow(app, err.Error())
 			return
 		}
 		fileListLabel.SetText(strings.Join(fileList, "\n"))
@@ -131,23 +177,23 @@ func main() {
 	chooseFolderButton := widget.NewButton("Choose Directory", func() {
 		fd := dialog.NewFolderOpen(func(folder fyne.ListableURI, err error) {
 			if err != nil {
-				errorWindow(a, err.Error())
+				errorWindow(app, err.Error())
 				return
 			}
 			if folder == nil {
 				return
 			}
-			folderPath = folder.Path()
-			if (folderPath != "") {
-				folderLabel.SetText("Path: " + folderPath)
+			dirOfFiles = folder.Path()
+			if (dirOfFiles != "") {
+				folderLabel.SetText("Path: " + dirOfFiles)
 			}
-			fileList, err = returnFileList(searchEntry.Text, folderPath)
+			files, err = searchFiles(searchEntry.Text, dirOfFiles)
 			if err != nil {
-				errorWindow(a, err.Error())
+				errorWindow(app, err.Error())
 				return
 			}
-			fileListLabel.SetText(strings.Join(fileList, "\n"))
-		}, w)
+			fileListLabel.SetText(strings.Join(files, "\n"))
+		}, mainWindow)
 
 		fd.Show()
 	})
@@ -179,26 +225,26 @@ func main() {
 	comboPlayerType.PlaceHolder = "mpv"
 
 	playButton := widget.NewButton("Play", func() {
-		videoFileName, subFileName, err := returnPlayCombo(fileList, searchEntry.Text, videoType, subType, folderPath)
+		playFile, err := locatePlayFiles(files, searchEntry.Text, videoType, subType, dirOfFiles)
 		if err != nil {
-			errorWindow(a, err.Error())
+			errorWindow(app, err.Error())
 			return
 		}
 
 		var playCmd *exec.Cmd
 		if (subType == "None") {
-			playCmd = exec.Command(playerType, videoFileName)
+			playCmd = exec.Command(playerType, playFile.VideoFileLocation)
 		} else {
-			playCmd = exec.Command(playerType, videoFileName, strings.Join([]string{"--sub-file", subFileName}, "="))
+			playCmd = exec.Command(playerType, playFile.VideoFileLocation, strings.Join([]string{"--sub-file", playFile.SubFileLocation}, "="))
 		}
 		err = playCmd.Run()
 		if err != nil {
-			errorWindow(a, strings.Join([]string{playerType, err.Error()}, " "))
+			errorWindow(app, strings.Join([]string{playerType, err.Error()}, " "))
 			return
 		}
 	})
 	searchEntry.OnSubmitted = func(_ string) {
-		if folderPath == "" {
+		if dirOfFiles == "" {
 			chooseFolderButton.Tapped(nil)
 		} else {
 			playButton.Tapped(nil)
@@ -207,7 +253,7 @@ func main() {
 
 	
 
-	w.SetContent(
+	mainWindow.SetContent(
 		container.NewVBox(
 			// container.NewHBox(folderLabel, layout.NewSpacer(), chooseFolderButton),
 			// container.NewBorder Doesn't require layout.NewSpacer() and works well with fyne.TextWrapWord -> label.Wrapping
@@ -220,12 +266,12 @@ func main() {
 			container.NewHBox(comboVideoType, comboSubType, comboPlayerType),
 			playButton,
 	))
-	w.Resize(fyne.NewSize(500, 300))
-	w.Show()
+	mainWindow.Resize(fyne.NewSize(500, 300))
+	mainWindow.Show()
 	
 	fyne.Do(func() {
-		w.Canvas().Focus(searchEntry)
+		mainWindow.Canvas().Focus(searchEntry)
 	})
 
-	a.Run()
+	app.Run()
 }
